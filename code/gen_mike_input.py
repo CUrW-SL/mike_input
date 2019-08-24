@@ -5,7 +5,7 @@ import traceback
 import os
 import pandas as pd
 from datetime import datetime, timedelta
-from code.db_layer import CurwSimAdapter
+from db_layer import CurwSimAdapter
 from functools import reduce
 
 
@@ -26,7 +26,7 @@ def get_individual_rain(db_adapter, available_station_list, ts_start, ts_end):
         return merged_df
 
 
-def create_hybrid_mike_input(output_file, run_date, forward, backward):
+def create_hybrid_mike_input(mode, output_path, run_date, forward, backward):
     print('create_hybrid_mike_input|output_path: ', output_path)
     try:
         run_datetime = datetime.strptime('%s %s' % (run_date, '00:00:00'), '%Y-%m-%d %H:%M:%S')
@@ -36,8 +36,12 @@ def create_hybrid_mike_input(output_file, run_date, forward, backward):
         available_station_list = db_adapter.get_available_stations(ts_start)
         if len(available_station_list) > 0:
             print('available_station_list : ', available_station_list)
-            rain_df = get_individual_rain(db_adapter, available_station_list, ts_start, ts_end)
-            rain_df.to_csv(output_file, header=True)
+            if mode == 'mean':
+                output_file = os.path.join(output_path, 'mike_input_mean.csv')
+            else:
+                output_file = os.path.join(output_path, 'mike_input_individual.csv')
+                rain_df = get_individual_rain(db_adapter, available_station_list, ts_start, ts_end)
+                rain_df.to_csv(output_file, header=True)
         else:
             print('no available stations.')
     except Exception as e:
@@ -51,9 +55,10 @@ if __name__ == "__main__":
     run_time = '14:00:00'
     forward = '2'
     backward = '3'
+    mode = 'individual'
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hd:t:f:b:", [
-            "help", "date=", "time=", "forward=", "backward="
+        opts, args = getopt.getopt(sys.argv[1:], "hd:t:f:b:m:", [
+            "help", "date=", "time=", "forward=", "backward=", "mode="
         ])
     except getopt.GetoptError:
         sys.exit(2)
@@ -68,6 +73,8 @@ if __name__ == "__main__":
             forward = int(arg)
         elif opt in ("-b", "--backward"):
             backward = int(arg)
+        elif opt in ("-m", "--mode"):
+            mode = int(arg)
     config_path = os.path.join(os.getcwd(), 'config.json')
     print('config_path : ', config_path)
     with open(config_path) as json_file:
@@ -83,7 +90,7 @@ if __name__ == "__main__":
         if not os.path.exists(output_path):
             os.makedirs(output_path)
         output_file = os.path.join(output_path, 'mike_input.csv')
-        create_hybrid_mike_input(output_file, run_date, forward, backward)
+        create_hybrid_mike_input(mode, output_file, run_date, forward, backward)
         try:
             if db_adapter is not None:
                 db_adapter.close_connection()
