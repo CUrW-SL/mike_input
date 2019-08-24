@@ -75,7 +75,7 @@ if __name__ == "__main__":
             backward = int(arg)
         elif opt in ("-m", "--mode"):
             mode = int(arg)
-    config_path = os.path.join(os.getcwd(), 'config.json')
+    config_path = os.path.join('/home/uwcc-admin/mike21/mike_input/code', 'config.json')
     print('config_path : ', config_path)
     with open(config_path) as json_file:
         config = json.load(json_file)
