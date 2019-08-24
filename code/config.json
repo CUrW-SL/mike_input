@@ -1,4 +1,5 @@
 {
+  "dir_path" : "/mnt/disks/curwsl_nfs/mike",
   "curw_sim_db_config" :
       {
         "host": "35.227.163.211",
