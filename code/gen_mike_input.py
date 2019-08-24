@@ -21,21 +21,23 @@ def get_individual_rain(db_adapter, available_station_list, ts_start, ts_end):
             tms_df.rename(columns={'value': station}, inplace=True)
             df_list.append(tms_df)
     if len(df_list) > 1:
-        merged_df = reduce(lambda left: pd.merge(left, on='time'), df_list)
+        merged_df = reduce(lambda left, right: pd.merge(left, right, on='Times'), df_list)
         print('merged_df : ', merged_df)
+        return merged_df
 
 
-def create_hybrid_mike_input(output_path, run_date, forward, backward):
+def create_hybrid_mike_input(output_file, run_date, forward, backward):
     print('create_hybrid_mike_input|output_path: ', output_path)
     try:
         run_datetime = datetime.strptime('%s %s' % (run_date, '00:00:00'), '%Y-%m-%d %H:%M:%S')
-        ts_end = run_datetime + timedelta(days=forward)
-        ts_start = run_datetime - timedelta(days=backward)
+        ts_end = (run_datetime + timedelta(days=forward)).strftime('%Y-%m-%d %H:%M:%S')
+        ts_start = (run_datetime - timedelta(days=backward)).strftime('%Y-%m-%d %H:%M:%S')
         print('[ts_end, ts_start] : ', [ts_end, ts_start])
         available_station_list = db_adapter.get_available_stations(ts_start)
         if len(available_station_list) > 0:
             print('available_station_list : ', available_station_list)
-            get_individual_rain(db_adapter, available_station_list, ts_start, ts_end)
+            rain_df = get_individual_rain(db_adapter, available_station_list, ts_start, ts_end)
+            rain_df.to_csv(output_file, header=True)
         else:
             print('no available stations.')
     except Exception as e:
@@ -63,10 +65,11 @@ if __name__ == "__main__":
         elif opt in ("-t", "--time"):
             run_time = arg  # 16:00:00
         elif opt in ("-f", "--forward"):
-            forward = arg
+            forward = int(arg)
         elif opt in ("-b", "--backward"):
-            backward = arg
+            backward = int(arg)
     config_path = os.path.join(os.getcwd(), 'config.json')
+    print('config_path : ', config_path)
     with open(config_path) as json_file:
         config = json.load(json_file)
         dir_path = config['dir_path']
@@ -79,10 +82,11 @@ if __name__ == "__main__":
         output_path = os.path.join(dir_path, run_date, run_time)
         if not os.path.exists(output_path):
             os.makedirs(output_path)
-            create_hybrid_mike_input(output_path, run_date, run_time, forward, backward)
+        output_file = os.path.join(output_path, 'mike_input.csv')
+        create_hybrid_mike_input(output_file, run_date, forward, backward)
         try:
             if db_adapter is not None:
-                db_adapter.close()
+                db_adapter.close_connection()
         except Exception as ex:
             print(str(ex))
 

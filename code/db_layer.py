@@ -6,8 +6,6 @@ from decimal import Decimal
 
 class CurwSimAdapter:
     def __init__(self, mysql_user, mysql_password, mysql_host, mysql_db):
-        print('[mysql_user, mysql_password, mysql_host, mysql_db] : ',
-              [mysql_user, mysql_password, mysql_host, mysql_db])
         try:
             self.connection = mysql.connector.connect(user=mysql_user,
                                                       password=mysql_password,
@@ -105,7 +103,7 @@ class CurwSimAdapter:
                 print('len(results) : {}'.format(len(results)))
                 data_error = ((time_step_count - len(results)) / time_step_count) * 100
                 if data_error < 1:
-                    df = pd.DataFrame(data=results, columns=['time', 'value']).set_index(keys='time')
+                    df = pd.DataFrame(data=results, columns=['Times', 'value']).set_index(keys='Times')
                     return df
                 else:
                     print('data_error : {}'.format(data_error))
@@ -119,7 +117,7 @@ class CurwSimAdapter:
                             formatted_ts.append(results[i])
                         else:
                             formatted_ts.append((tms_step, Decimal(0)))
-                    df = pd.DataFrame(data=formatted_ts, columns=['time', 'value']).set_index(keys='time')
+                    df = pd.DataFrame(data=formatted_ts, columns=['Times', 'value']).set_index(keys='Times')
                     print('get_station_timeseries|df: ', df)
                     return df
             else:
