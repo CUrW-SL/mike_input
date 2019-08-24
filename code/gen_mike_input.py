@@ -11,7 +11,8 @@ from netCDF4 import Dataset
 import pandas as pd
 import geopandas as gpd
 from datetime import datetime, timedelta
-from curwmysqladapter import MySQLAdapter
+# from db_layer import CurwSimAdapter
+from code.db_layer import CurwSimAdapter
 import csv
 
 KELANI_LOWER_BASIN_EXTENT = [79.8389, 6.77083, 80.1584, 7.04713]
@@ -664,211 +665,31 @@ def get_centroid_names(point_file_path):
     return name_list[1:]
 
 
-def create_hybrid_mike_input(dir_path, run_date, run_time, forward, backward):
+def create_hybrid_mike_input(dir_path, run_date, forward, backward):
     try:
-        res_mins = '60'
-        model_prefix = 'wrf'
-        forecast_source = 'wrf0'
-        run_name = 'Cloud-1'
-        forecast_adapter = None
-        observed_adapter = None
-        kelani_basin_mike_points_file = get_resource_path('extraction/local/metro_col_sub_catch_centroids.csv')
-        kelani_basin_points_file = get_resource_path('extraction/local/kelani_basin_points_250m.txt')
-        kelani_lower_basin_shp_file = get_resource_path('extraction/shp/klb-wgs84/klb-wgs84.shp')
-        reference_net_cdf = get_resource_path('extraction/netcdf/wrf_wrfout_d03_2019-03-31_18_00_00_rf')
-        #config_path = os.path.join(os.getcwd(), 'raincelldat', 'config.json')
+        curw_sim_adapter = None
+        run_datetime = datetime.strptime('%s %s' % (run_date, '00:00:00'), '%Y-%m-%d %H:%M:%S')
+        ts_end = run_datetime + timedelta(days=forward)
+        ts_start = run_datetime - timedelta(days=backward)
         config_path = os.path.join(os.getcwd(), 'config.json')
         with open(config_path) as json_file:
             config = json.load(json_file)
-            if 'forecast_db_config' in config:
-                forecast_db_config = config['forecast_db_config']
-            if 'observed_db_config' in config:
-                observed_db_config = config['observed_db_config']
-            if 'klb_obs_stations' in config:
-                obs_stations = copy.deepcopy(config['klb_obs_stations'])
-
-            res_mins = int(res_mins)
-            print('[run_date, run_time] : ', [run_date, run_time])
-            start_ts_lk = datetime.strptime('%s %s' % (run_date, run_time), '%Y-%m-%d %H:%M:%S')
-            start_ts_lk = start_ts_lk.strftime('%Y-%m-%d_%H:00')  # '2018-05-24_08:00'
-            duration_days = (int(backward), int(forward))
-            obs_start = datetime.strptime(start_ts_lk, '%Y-%m-%d_%H:%M') - timedelta(days=duration_days[0])
-            obs_end = datetime.strptime(start_ts_lk, '%Y-%m-%d_%H:%M')
-            forecast_end = datetime.strptime(start_ts_lk, '%Y-%m-%d_%H:%M') + timedelta(days=duration_days[1])
-            print([obs_start, obs_end, forecast_end])
-
-            fcst_duration_start = obs_end.strftime('%Y-%m-%d %H:%M:%S')
-            fcst_duration_end = (datetime.strptime(fcst_duration_start, '%Y-%m-%d %H:%M:%S') + timedelta(days=3)).strftime('%Y-%m-%d 00:00:00')
-            obs_duration_start = (datetime.strptime(fcst_duration_start, '%Y-%m-%d %H:%M:%S') - timedelta(days=2)).strftime('%Y-%m-%d 00:00:00')
-
-            print('obs_duration_start : ', obs_duration_start)
-            print('fcst_duration_start : ', fcst_duration_start)
-            print('fcst_duration_end : ', fcst_duration_end)
-
-            observed_duration = int((datetime.strptime(fcst_duration_start, '%Y-%m-%d %H:%M:%S') - datetime.strptime(obs_duration_start, '%Y-%m-%d %H:%M:%S')).total_seconds() / (60 * res_mins))
-            forecast_duration = int((datetime.strptime(fcst_duration_end, '%Y-%m-%d %H:%M:%S') - datetime.strptime(fcst_duration_start, '%Y-%m-%d %H:%M:%S')).total_seconds() / (60 * res_mins))
-            total_duration = int((datetime.strptime(fcst_duration_end, '%Y-%m-%d %H:%M:%S') - datetime.strptime(obs_duration_start, '%Y-%m-%d %H:%M:%S')).total_seconds() / (60 * res_mins))
-
-            print('observed_duration : ', observed_duration)
-            print('forecast_duration : ', forecast_duration)
-            print('total_duration : ', total_duration)
-
-            mike_input_file_path = os.path.join(dir_path, 'mike_input.txt')
-            print('mike_input_file_path : ', mike_input_file_path)
-            if not os.path.isfile(mike_input_file_path):
-                points = np.genfromtxt(kelani_basin_points_file, delimiter=',')
-
-                kel_lon_min = np.min(points, 0)[1]
-                kel_lat_min = np.min(points, 0)[2]
-                kel_lon_max = np.max(points, 0)[1]
-                kel_lat_max = np.max(points, 0)[2]
-
-                mike_points = np.genfromtxt(kelani_basin_mike_points_file, delimiter=',', names=True, dtype=None)
-                print('mike_points : ', mike_points)
-                print('mike_points : ', mike_points[0][0].decode())
-                print('mike_points : ', mike_points[1][0].decode())
-                print('mike_points : ', mike_points[2][0].decode())
-
-                def _get_points_names(mike_points):
-                    mike_point_names = []
-                    for p in mike_points:
-                        mike_point_names.append(p[0].decode())
-                    return mike_point_names
-
-                #mike_point_names = get_centroid_names(kelani_basin_mike_points_file)
-                mike_point_names = _get_points_names(mike_points)
-
-
-                print('mike_point_names : ', mike_point_names)
-
-                print('mike_point_names[0] : ', mike_point_names[0])
-                print('mike_point_names[1] : ', mike_point_names[1])
-                print('mike_point_names[2] : ', mike_point_names[2])
-                print('mike_point_names[-1] : ', mike_point_names[-1])
-
-                print('[kel_lon_min, kel_lat_min, kel_lon_max, kel_lat_max] : ',
-                      [kel_lon_min, kel_lat_min, kel_lon_max, kel_lat_max])
-                #"""
-                # #min_lat, min_lon, max_lat, max_lon
-                forecast_stations, station_points = get_forecast_stations_from_net_cdf(model_prefix, reference_net_cdf,
-                                                                                       kel_lat_min,
-                                                                                       kel_lon_min,
-                                                                                       kel_lat_max,
-                                                                                       kel_lon_max)
-                print('forecast_stations length : ', len(forecast_stations))
-                file_header = ','.join(mike_point_names)
-                print('file_header : ', file_header)
-                observed_adapter = MySQLAdapter(host=observed_db_config['host'],
-                                                user=observed_db_config['user'],
-                                                password=observed_db_config['password'],
-                                                db=observed_db_config['db'])
-
-                # print('obs_stations : ', obs_stations)
-                observed_precipitations = get_observed_precip(obs_stations,
-                                                              obs_duration_start,
-                                                              fcst_duration_start,
-                                                              observed_duration,
-                                                              observed_adapter, forecast_source='wrf0')
-                observed_adapter.close()
-                observed_adapter = None
-                validated_obs_station = {}
-                # print('obs_stations.keys() : ', obs_stations.keys())
-                # print('observed_precipitations.keys() : ', observed_precipitations.keys())
-
-                for station_name in obs_stations.keys():
-                    if station_name in observed_precipitations.keys():
-                        validated_obs_station[station_name] = obs_stations[station_name]
-                    else:
-                        print('invalid station_name : ', station_name)
-
-                # if bool(observed_precipitations):
-                if len(validated_obs_station) >= 1:
-                    thess_poly = get_voronoi_polygons(validated_obs_station, kelani_lower_basin_shp_file,
-                                                      add_total_area=False)
-                    forecast_adapter = MySQLAdapter(host=forecast_db_config['host'],
-                                                    user=forecast_db_config['user'],
-                                                    password=forecast_db_config['password'],
-                                                    db=forecast_db_config['db'])
-
-                    forecast_precipitations = get_forecast_precipitation(forecast_source, run_name, forecast_stations,
-                                                                         forecast_adapter,
-                                                                         obs_end.strftime('%Y-%m-%d %H:%M:%S'),
-                                                                         forward_days=3)
-                    forecast_adapter.close()
-                    forecast_adapter = None
-                    if bool(forecast_precipitations):
-                        fcst_thess_poly = get_voronoi_polygons(station_points, kelani_lower_basin_shp_file,
-                                                               add_total_area=False)
-
-                        fcst_point_thess_idx = []
-                        for point in mike_points:
-                            fcst_point_thess_idx.append(is_inside_geo_df(fcst_thess_poly, lon=point[1], lat=point[2]))
-                            pass
-                        # print('fcst_point_thess_idx : ', fcst_point_thess_idx)
-
-                        # create_dir_if_not_exists(dir_path)
-                        point_thess_idx = []
-                        for point in mike_points:
-                            point_thess_idx.append(is_inside_geo_df(thess_poly, lon=point[1], lat=point[2]))
-                            pass
-
-                        print('len(mike_points)', len(mike_points))
-                        print('len(point_thess_idx)', len(point_thess_idx))
-                        print('len(fcst_point_thess_idx)', len(fcst_point_thess_idx))
-
-                        print('point_thess_idx : ', point_thess_idx)
-                        print('fcst_point_thess_idx : ', fcst_point_thess_idx)
-                        print('mike_point_names : ', mike_point_names)
-                        with open(mike_input_file_path, mode='w') as output_file:
-                            output_writer = csv.writer(output_file, delimiter=',', dialect='excel')
-                            header = ['Times']
-                            header.extend(mike_point_names)
-                            output_writer.writerow(header)
-                            print('range 1 : ', int(24 * 60 * duration_days[0] / res_mins) + 1)
-                            print('range 2 : ', int(24 * 60 * duration_days[1] / res_mins) - 1)
-                            obs_duration_end = None
-                            for t in range(observed_duration):
-                                date_time = datetime.strptime(obs_duration_start, '%Y-%m-%d %H:%M:%S')+timedelta(hours=t)
-                                obs_duration_end = date_time.strftime('%Y-%m-%d %H:%M:%S')
-                                print(date_time.strftime('%Y-%m-%d %H:%M:%S'))
-                                obs_rf_list = []
-                                for i, point in enumerate(mike_points):
-                                    rf = float(observed_precipitations[point_thess_idx[i]].values[t]) if point_thess_idx[i] is not None else 0
-                                    obs_rf_list.append('%.6f'% rf)
-                                row = [date_time.strftime('%Y-%m-%d %H:%M:%S')]
-                                row.extend(obs_rf_list)
-                                output_writer.writerow(row)
-                            print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-                            next_time_step = datetime.strptime(obs_duration_end, '%Y-%m-%d %H:%M:%S') + timedelta(hours= 1)
-                            for t in range(forecast_duration):
-                                date_time = next_time_step + timedelta(hours=t)
-                                print(date_time.strftime('%Y-%m-%d %H:%M:%S'))
-                                fcst_rf_list = []
-                                for i, point in enumerate(mike_points):
-                                    rf = float(forecast_precipitations[fcst_point_thess_idx[i]].values[t]) if fcst_point_thess_idx[i] is not None else 0
-                                    fcst_rf_list.append('%.6f' % rf)
-                                row = [date_time.strftime('%Y-%m-%d %H:%M:%S')]
-                                row.extend(fcst_rf_list)
-                                output_writer.writerow(row)
-                    else:
-                        print('----------------------------------------------')
-                        print('No forecast data.')
-                        print('----------------------------------------------')
-                else:
-                    print('----------------------------------------------')
-                    print('No observed data.')
-                    print('Available station count: ', len(validated_obs_station))
-                    print('Proceed with forecast data.')
-                    print('----------------------------------------------')
-               # """
+            if 'curw_sim_db_config' in config:
+                curw_sim_db_config = config['curw_sim_db_config']
+            else:
+                exit(2)
+            curw_sim_adapter = CurwSimAdapter(curw_sim_db_config['user'], curw_sim_db_config['password'],
+                                              curw_sim_db_config['host'], curw_sim_db_config['db'])
+            print('[ts_end, ts_start] : ', [ts_end, ts_start])
+            available_station_list = curw_sim_adapter.get_available_stations(ts_start)
+            if len(available_station_list) > 0:
+                print('')
     except Exception as e:
-        print('Raincell generation error|Exception:', str(e))
+        print('Mike generation error|Exception:', str(e))
         traceback.print_exc()
         try:
-            if forecast_adapter is not None:
-                forecast_adapter.close()
-            if observed_adapter is not None:
-                observed_adapter.close()
+            if curw_sim_adapter is not None:
+                curw_sim_adapter.close()
         except Exception as ex:
             print(str(ex))
 
@@ -877,8 +698,8 @@ if __name__ == "__main__":
     dir_path = '/home/hasitha/PycharmProjects/Workflow'
     run_date = '2019-05-28'
     run_time = '14:00:00'
-    forward = '3'
-    backward = '2'
+    forward = '2'
+    backward = '3'
     output_path = os.path.join(dir_path, 'output', run_date, run_time)
     if not os.path.exists(output_path):
         os.makedirs(output_path)
