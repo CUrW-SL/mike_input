@@ -1,4 +1,6 @@
+import getopt
 import json
+import sys
 import traceback
 import numpy as np
 import os
@@ -13,6 +15,7 @@ import geopandas as gpd
 from datetime import datetime, timedelta
 # from db_layer import CurwSimAdapter
 from code.db_layer import CurwSimAdapter
+from functools import reduce
 import csv
 
 KELANI_LOWER_BASIN_EXTENT = [79.8389, 6.77083, 80.1584, 7.04713]
@@ -48,7 +51,8 @@ def get_max_min_lat_lon(basin_points_file):
     kel_lat_min = np.min(points, 0)[2]
     kel_lon_max = np.max(points, 0)[1]
     kel_lat_max = np.max(points, 0)[2]
-    print('[kel_lon_min, kel_lat_min, kel_lon_max, kel_lat_max] : ', [kel_lon_min, kel_lat_min, kel_lon_max, kel_lat_max])
+    print('[kel_lon_min, kel_lat_min, kel_lon_max, kel_lat_max] : ',
+          [kel_lon_min, kel_lat_min, kel_lon_max, kel_lat_max])
     print(points[0][1])
     print(points[0][2])
 
@@ -71,7 +75,8 @@ def get_observed_precip(stations, start_dt, end_dt, observed_duration, adapter, 
                    }
         row_ts = adapter.retrieve_timeseries(station, opts)
         if len(row_ts) == 0:
-            print('No data for {} station from {} to {} .'.format(s, start_dt.strftime('%Y-%m-%d %H:%M:%S'), end_dt.strftime('%Y-%m-%d %H:%M:%S')))
+            print('No data for {} station from {} to {} .'.format(s, start_dt.strftime('%Y-%m-%d %H:%M:%S'),
+                                                                  end_dt.strftime('%Y-%m-%d %H:%M:%S')))
         else:
             ts = np.array(row_ts[0]['timeseries'])
             if len(ts) != 0:
@@ -138,11 +143,12 @@ def get_observed_precip_previous(stations, start_dt, end_dt, duration_days, adap
         # print('station : ', s)
         row_ts = adapter.retrieve_timeseries(station, opts)
         if len(row_ts) == 0:
-            print('No data for {} station from {} to {} .'.format(s, start_dt.strftime('%Y-%m-%d %H:%M:%S'), end_dt.strftime('%Y-%m-%d %H:%M:%S')))
+            print('No data for {} station from {} to {} .'.format(s, start_dt.strftime('%Y-%m-%d %H:%M:%S'),
+                                                                  end_dt.strftime('%Y-%m-%d %H:%M:%S')))
         else:
             ts = np.array(row_ts[0]['timeseries'])
-            #print('ts length:', len(ts))
-            if len(ts) != 0 :
+            # print('ts length:', len(ts))
+            if len(ts) != 0:
                 ts_df = pd.DataFrame(data=ts, columns=['ts', 'precip'], index=ts[0:])
                 ts_sum = ts_df.groupby(by=[ts_df.ts.map(lambda x: x.strftime('%Y-%m-%d %H:00'))]).sum()
                 try:
@@ -155,7 +161,8 @@ def get_observed_precip_previous(stations, start_dt, end_dt, duration_days, adap
     return obs
 
 
-def get_forecast_precipitation_for_observed(wrf_model, run_name, forecast_stations, adapter, start_datetime, end_datetime):
+def get_forecast_precipitation_for_observed(wrf_model, run_name, forecast_stations, adapter, start_datetime,
+                                            end_datetime):
     forecast = {}
     fcst_opts = {
         'from': start_datetime,
@@ -164,12 +171,12 @@ def get_forecast_precipitation_for_observed(wrf_model, run_name, forecast_statio
     print('fcst_opts : ', fcst_opts)
     for s in forecast_stations:
         station = {'station': s,
-                      'variable': 'Precipitation',
-                      'unit': 'mm',
-                      'type': 'Forecast-0-d',
-                      'name': run_name,
-                      'source': wrf_model
-                      }
+                   'variable': 'Precipitation',
+                   'unit': 'mm',
+                   'type': 'Forecast-0-d',
+                   'name': run_name,
+                   'source': wrf_model
+                   }
         row_ts = adapter.retrieve_timeseries(station, fcst_opts)
 
         ts_df = pd.DataFrame(columns=['time', 'value'])
@@ -188,21 +195,21 @@ def get_forecast_precipitation(wrf_model, run_name, forecast_stations, adapter, 
     if forward_days == 3:
         fcst_d0_start = run_datetime
         fcst_d0_end = (datetime.strptime(run_datetime, '%Y-%m-%d %H:%M:%S') + timedelta(days=1)).strftime(
-                '%Y-%m-%d 00:00:00')
+            '%Y-%m-%d 00:00:00')
         fcst_opts_d0 = {
             'from': fcst_d0_start,
             'to': fcst_d0_end,
         }
         fcst_d1_start = fcst_d0_end
         fcst_d1_end = (datetime.strptime(fcst_d1_start, '%Y-%m-%d %H:%M:%S') + timedelta(days=1)).strftime(
-                '%Y-%m-%d 00:00:00')
+            '%Y-%m-%d 00:00:00')
         fcst_opts_d1 = {
             'from': fcst_d1_start,
             'to': fcst_d1_end,
         }
         fcst_d2_start = fcst_d1_end
         fcst_d2_end = (datetime.strptime(fcst_d2_start, '%Y-%m-%d %H:%M:%S') + timedelta(days=1)).strftime(
-                '%Y-%m-%d 00:00:00')
+            '%Y-%m-%d 00:00:00')
         fcst_opts_d2 = {
             'from': fcst_d2_start,
             'to': fcst_d2_end,
@@ -212,21 +219,21 @@ def get_forecast_precipitation(wrf_model, run_name, forecast_stations, adapter, 
         print('fcst_opts_d2 : ', fcst_opts_d2)
         for s in forecast_stations:
             station_d0 = {'station': s,
-                              'variable': 'Precipitation',
-                              'unit': 'mm',
-                              'type': 'Forecast-0-d',
-                              'name': run_name,
-                              'source': wrf_model
-                              }
+                          'variable': 'Precipitation',
+                          'unit': 'mm',
+                          'type': 'Forecast-0-d',
+                          'name': run_name,
+                          'source': wrf_model
+                          }
             row_ts_d0 = adapter.retrieve_timeseries(station_d0, fcst_opts_d0)
 
             station_d1 = {'station': s,
-                              'variable': 'Precipitation',
-                              'unit': 'mm',
-                              'type': 'Forecast-1-d-after',
-                              'name': run_name,
-                              'source': wrf_model
-                            }
+                          'variable': 'Precipitation',
+                          'unit': 'mm',
+                          'type': 'Forecast-1-d-after',
+                          'name': run_name,
+                          'source': wrf_model
+                          }
             row_ts_d1 = adapter.retrieve_timeseries(station_d1, fcst_opts_d1)
 
             station_d2 = {'station': s,
@@ -278,13 +285,13 @@ def get_forecast_precipitation_from_curw(forecast_stations, start_dt, end_dt, ad
                    'type': 'Forecast-0-d',
                    'source': forecast_source
                    }
-        #print('station : ', s)
+        # print('station : ', s)
         row_ts = adapter.retrieve_timeseries(station, opts)
         if len(row_ts) == 0:
             print('No data for {} station from {} to {} .'.format(s, start_dt, end_dt))
         else:
             ts = np.array(row_ts[0]['timeseries'])
-            if len(ts) != 0 :
+            if len(ts) != 0:
                 ts_df = pd.DataFrame(data=ts, columns=['ts', 'precip'], index=ts[0:])
                 ts_sum = ts_df.groupby(by=[ts_df.ts.map(lambda x: x.strftime('%Y-%m-%d %H:00'))]).sum()
                 forecast[s] = ts_sum
@@ -308,8 +315,8 @@ def get_forecast_stations_from_net_cdf(model_prefix, net_cdf_file, min_lat, min_
         lats.append(lat_row[0])
     lons = nc_fid.variables['XLONG'][:][0][0]
 
-    lon_min_idx = np.argmax(lons >= min_lon) -1
-    lat_min_idx = np.argmax(lats >= min_lat) -1
+    lon_min_idx = np.argmax(lons >= min_lon) - 1
+    lat_min_idx = np.argmax(lats >= min_lat) - 1
     lon_max_idx = np.argmax(lons >= max_lon)
     lat_max_idx = np.argmax(lats >= max_lat)
 
@@ -341,8 +348,8 @@ def get_forecast_stations_from_net_cdf_back(model_prefix, net_cdf_file, min_lat,
         lats.append(lat_row[0])
     lons = nc_fid.variables['XLONG'][:][0][0]
 
-    lon_min_idx = np.argmax(lons >= min_lon) -1
-    lat_min_idx = np.argmax(lats >= min_lat) -1
+    lon_min_idx = np.argmax(lons >= min_lon) - 1
+    lat_min_idx = np.argmax(lats >= min_lat) - 1
     lon_max_idx = np.argmax(lons >= max_lon)
     lat_max_idx = np.argmax(lats >= max_lat)
 
@@ -373,7 +380,7 @@ def get_forecast_stations_from_net_cdf_back(model_prefix, net_cdf_file, min_lat,
                 lat_val = '%.6f' % (lat)
                 lon_val = '%.6f' % (lon)
                 writer.writerow([index, lat_val, lon_val])
-                count = count+1
+                count = count + 1
     csvFile.close()
     return stations, station_points
 
@@ -577,7 +584,8 @@ def datetime_utc_to_lk(timestamp_utc, shift_mins=0):
     return timestamp_utc + timedelta(hours=5, minutes=30 + shift_mins)
 
 
-def extract_points_array_rf_series(nc_f, points_array, boundaries=None, rf_var_list=None, lat_var='XLAT', lon_var='XLONG',
+def extract_points_array_rf_series(nc_f, points_array, boundaries=None, rf_var_list=None, lat_var='XLAT',
+                                   lon_var='XLONG',
                                    time_var='Times'):
     """
     :param boundaries: list [lat_min, lat_max, lon_min, lon_max]
@@ -640,7 +648,9 @@ def extract_metro_col_rf_for_mike21(nc_f, output_dir, prev_rf_files=None, points
     output = None
     for i in range(prev_days):
         if output is not None:
-            output = np.append(output,extract_points_array_rf_series(prev_rf_files[prev_days - 1 - i], points)[:lines_per_day],axis=0)
+            output = np.append(output,
+                               extract_points_array_rf_series(prev_rf_files[prev_days - 1 - i], points)[:lines_per_day],
+                               axis=0)
         else:
             output = extract_points_array_rf_series(prev_rf_files[prev_days - 1 - i], points)[:lines_per_day]
 
@@ -665,6 +675,22 @@ def get_centroid_names(point_file_path):
     return name_list[1:]
 
 
+def get_mean_rain(db_adapter, available_station_list, ts_start, ts_end):
+    print()
+
+
+def get_individual_rain(db_adapter, available_station_list, ts_start, ts_end):
+    df_list = []
+    for [hash_id, station] in available_station_list:
+        tms_df = db_adapter.get_timeseries_by_id(hash_id, ts_start, ts_end)
+        if tms_df is not None:
+            tms_df.rename(columns={'value': station}, inplace=True)
+            df_list.append(tms_df)
+    if len(df_list) > 1:
+        merged_df = reduce(lambda left: pd.merge(left, on='time'), df_list)
+        print('merged_df : ', merged_df)
+
+
 def create_hybrid_mike_input(dir_path, run_date, forward, backward):
     try:
         curw_sim_adapter = None
@@ -678,12 +704,15 @@ def create_hybrid_mike_input(dir_path, run_date, forward, backward):
                 curw_sim_db_config = config['curw_sim_db_config']
             else:
                 exit(2)
-            curw_sim_adapter = CurwSimAdapter(curw_sim_db_config['user'], curw_sim_db_config['password'],
+            db_adapter = CurwSimAdapter(curw_sim_db_config['user'], curw_sim_db_config['password'],
                                               curw_sim_db_config['host'], curw_sim_db_config['db'])
             print('[ts_end, ts_start] : ', [ts_end, ts_start])
-            available_station_list = curw_sim_adapter.get_available_stations(ts_start)
+            available_station_list = db_adapter.get_available_stations(ts_start)
             if len(available_station_list) > 0:
-                print('')
+                print('available_station_list : ', available_station_list)
+                get_individual_rain(db_adapter, available_station_list, ts_start, ts_end)
+            else:
+                print('no available stations.')
     except Exception as e:
         print('Mike generation error|Exception:', str(e))
         traceback.print_exc()
@@ -695,15 +724,29 @@ def create_hybrid_mike_input(dir_path, run_date, forward, backward):
 
 
 if __name__ == "__main__":
-    dir_path = '/home/hasitha/PycharmProjects/Workflow'
+    dir_path = '/mnt/disks/curwsl_nfs/mike'
     run_date = '2019-05-28'
     run_time = '14:00:00'
     forward = '2'
     backward = '3'
-    output_path = os.path.join(dir_path, 'output', run_date, run_time)
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hd:t:f:b:", [
+            "help", "date=", "time=", "forward=", "backward="
+        ])
+    except getopt.GetoptError:
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt in ("-h", "--help"):
+            sys.exit()
+        elif opt in ("-d", "--date"):
+            run_date = arg  # 2018-05-24
+        elif opt in ("-t", "--time"):
+            run_time = arg  # 16:00:00
+        elif opt in ("-f", "--forward"):
+            forward = arg
+        elif opt in ("-b", "--backward"):
+            backward = arg
+    output_path = os.path.join(dir_path, run_date, run_time)
     if not os.path.exists(output_path):
         os.makedirs(output_path)
-        create_dir_if_not_exists(output_path)
-    create_hybrid_mike_input(output_path, run_date, run_time, forward, backward)
-
-
+        create_hybrid_mike_input(output_path, run_date, run_time, forward, backward)
