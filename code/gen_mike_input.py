@@ -74,7 +74,7 @@ if __name__ == "__main__":
         elif opt in ("-b", "--backward"):
             backward = int(arg)
         elif opt in ("-m", "--mode"):
-            mode = int(arg)
+            mode = arg
     config_path = os.path.join('/home/uwcc-admin/mike21/mike_input/code', 'config.json')
     print('config_path : ', config_path)
     with open(config_path) as json_file:
@@ -89,8 +89,7 @@ if __name__ == "__main__":
         output_path = os.path.join(dir_path, run_date, run_time)
         if not os.path.exists(output_path):
             os.makedirs(output_path)
-        output_file = os.path.join(output_path, 'mike_input.csv')
-        create_hybrid_mike_input(mode, output_file, run_date, forward, backward)
+        create_hybrid_mike_input(mode, output_path, run_date, forward, backward)
         try:
             if db_adapter is not None:
                 db_adapter.close_connection()
