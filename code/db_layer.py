@@ -112,12 +112,16 @@ class CurwSimAdapter:
                     i = 0
                     for step in range(time_step_count):
                         tms_step = datetime.strptime(timeseries_start, '%Y-%m-%d %H:%M:%S') + timedelta(
-                            minutes=step * time_step)
-                        if tms_step == results[i][0]:
-                            formatted_ts.append(results[i])
+                            minutes=step * 5)
+                        if step < len(results):
+                            if tms_step == results[i][0]:
+                                formatted_ts.append(results[i])
+                            else:
+                                formatted_ts.append((tms_step, Decimal(0)))
                         else:
                             formatted_ts.append((tms_step, Decimal(0)))
-                    df = pd.DataFrame(data=formatted_ts, columns=['Times', 'value']).set_index(keys='Times')
+                        i += 1
+                    df = pd.DataFrame(data=formatted_ts, columns=['time', 'value']).set_index(keys='time')
                     print('get_station_timeseries|df: ', df)
                     return df
             else:
