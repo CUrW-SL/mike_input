@@ -121,7 +121,7 @@ class CurwSimAdapter:
                         else:
                             formatted_ts.append((tms_step, Decimal(0)))
                         i += 1
-                    df = pd.DataFrame(data=formatted_ts, columns=['time', 'value']).set_index(keys='time')
+                    df = pd.DataFrame(data=formatted_ts, columns=['Times', 'value']).set_index(keys='Times')
                     print('get_station_timeseries|df: ', df)
                     return df
             else:
